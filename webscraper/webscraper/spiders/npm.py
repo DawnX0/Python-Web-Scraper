@@ -17,14 +17,14 @@ class NpmSpider(scrapy.Spider):
                     self.start_url=url
                     break
                 else:
-                    self.log("[LOG] Enter a valid organization url...")
+                    print("Enter a valid organization url. example: https://www.npmjs.com/org/")
             else:
                 url = input("Enter NPM package url: ")
                 if url.startswith("https://www.npmjs.com/package/"):
                     self.start_url=url
                     break
                 else:
-                    self.log("[LOG] Enter a valid package url...")
+                    print("Enter a valid package url. example: https://www.npmjs.com/package/...")
 
 
     async def start(self):
@@ -32,7 +32,6 @@ class NpmSpider(scrapy.Spider):
 
 
     def parse(self, response: Response):
-        # Example: save page to file
-        page_name = response.url.split("/")[-1] or "index"
+        page_name = response.url.split("/")[-1]
         Path(page_name + ".html").write_bytes(response.body)
 
