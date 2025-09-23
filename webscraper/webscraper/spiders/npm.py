@@ -1,6 +1,7 @@
 import scrapy
 from scrapy.http import Response
 from pathlib import Path
+from scrapy_playwright.page import PageMethod
 
 class NpmSpider(scrapy.Spider):
     name = "npm"
@@ -28,10 +29,28 @@ class NpmSpider(scrapy.Spider):
 
 
     async def start(self):
-        yield scrapy.Request(url=self.start_url, meta={"playwright": True})
+        yield scrapy.Request(url=self.start_url, meta={
+            "playwright": True,
+            "playwright_page_methods": [
+                PageMethod('click', "xpath=//a[contains(text(), 'show more packages')]"),
+                PageMethod('wait_for_load_state', 'networkidle'),
+            ]
+        })
 
 
     def parse(self, response: Response):
         page_name = response.url.split("/")[-1]
-        Path(page_name + ".html").write_bytes(response.body)
+
+        folder = Path(page_name)
+        folder.mkdir(exist_ok=True)
+
+        html_data = folder / (page_name + ".html")
+        html_data.write_bytes(response.body)
+
+        all_hrefs = response.xpath("//a/@href").getall()
+        filtered_packages = [href.split('/package/')[-1] for href in all_hrefs if href.startswith('/package/')]
+        
+        packages_data = folder / "packages.txt"
+        packages_data.write_text('\n'.join(filtered_packages) + '\n')
+
 
