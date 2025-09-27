@@ -33,7 +33,7 @@ class NpmSpider(scrapy.Spider):
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute("""
-                        CREATE TABLE IF NOT EXISTS rag_chunks (
+                        CREATE TABLE IF NOT EXISTS npm_chunks (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             package_name VARCHAR(255),
                             version VARCHAR(50),
@@ -99,7 +99,7 @@ class NpmSpider(scrapy.Spider):
                     async with self.pool.acquire() as conn:
                         async with conn.cursor() as cur:
                             await cur.execute(
-                                "INSERT INTO rag_chunks (package_name, version, filename, content) VALUES (%s, %s, %s, %s)",
+                                "INSERT INTO npm_chunks (package_name, version, filename, content) VALUES (%s, %s, %s, %s)",
                                 (package_name, version, str(file.relative_to(scope_folder)), text)
                             )
                             await conn.commit()
