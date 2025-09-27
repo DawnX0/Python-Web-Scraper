@@ -38,7 +38,7 @@ class NpmSpider(scrapy.Spider):
                             package_name VARCHAR(255),
                             version VARCHAR(50),
                             filename VARCHAR(255),
-                            content TEXT,
+                            content LONGTEXT,
                             scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
                     """)
@@ -73,15 +73,14 @@ class NpmSpider(scrapy.Spider):
         ).ask()
         
         self.pool = None
+        self.config = None
+
         self.url = input("Enter URL: ")
-        
+
+        if self.save_to_db == "YES":
+            self.config = self.ask_mysql_config()
 
     async def start(self):
-        if self.save_to_db == "YES" and not self.pool:
-            config = self.ask_mysql_config()
-            self.pool = await aiomysql.create_pool(**config)
-            await self.ensure_schema()
-            
         yield scrapy.Request(
             self.url, 
             callback=self.parse,
@@ -95,7 +94,7 @@ class NpmSpider(scrapy.Spider):
     async def store_extracted_files(self, package_name, version, scope_folder):
         if self.pool:
             for file in scope_folder.rglob("*"):
-                if file.suffix in {".md", ".json", ".ts", ".js"} and file.is_file():
+                if file.suffix in {".md", ".json", ".ts", ".js", ".lua"} and file.is_file():
                     text = file.read_text(encoding="utf-8", errors="ignore")
                     async with self.pool.acquire() as conn:
                         async with conn.cursor() as cur:
@@ -130,15 +129,14 @@ class NpmSpider(scrapy.Spider):
             tar_path.write_bytes(content)
             print(f"[STATUS]: Downloaded {safe_name}@{version}")
             
-        with tarfile.open(tar_path, "r:gz") as tar:
-            try:
-                with tarfile.open(tar_path, "r:gz") as tar:
-                    tar.extractall(path=scope_folder)
-            except tarfile.ReadError:
-                print(f"[ERROR]: Failed to extract {safe_name}@{version}")
-                return                                                                                                                                                              ``
-            print(f"[STATUS]: Extracted contents to {scope_folder}")
-            tar_path.unlink()
+        try:
+            with tarfile.open(tar_path, "r:gz") as tar:
+                tar.extractall(path=scope_folder)
+        except tarfile.ReadError:
+            print(f"[ERROR]: Failed to extract {safe_name}@{version}")
+            return
+        print(f"[STATUS]: Extracted contents to {scope_folder}")
+        tar_path.unlink()
             
         if self.save_to_db == "YES":
             await self.store_extracted_files(package_name, version, scope_folder)
@@ -148,6 +146,11 @@ class NpmSpider(scrapy.Spider):
             print(f"[INFO]: Package retained locally at {scope_folder}")
         
     async def parse(self, response: Response):
+        if self.save_to_db == "YES" and not self.pool and self.config:
+            self.pool = await aiomysql.create_pool(**self.config)
+            await self.ensure_schema()
+            print("[DB]: Connection pool created and schema ensured.")
+            
         page: Page = response.meta['playwright_page']
 
         if self.choice == "NPM ORG":
